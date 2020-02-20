@@ -1,0 +1,114 @@
+foreach (var oneODN in context.Objs) {
+					//	var findPrj = EntityManager<BaselineScenario>.Instance.Find (FetchOptions.All).Where (x => x.CodeODN == oneODN && x.Status == ProjectStatus.Active).ToList ();
+					var findPrj = EntityManager<BaselineScenario>.Instance.Find (x => x.CodeODN == oneODN && x.Status == ProjectStatus.Active).ToList ();
+					if (findPrj != null) {
+						Logging.Logger.Log.Error ("findPrj1");
+						foreach (var onePrj in findPrj) {
+							if (oneODN.VT_Status != null)
+								if (onePrj.MainStatus != oneODN.VT_Status)
+									onePrj.MainStatus = oneODN.VT_Status;
+							if (oneODN.VT_SiteName != null)
+								if (onePrj.BS == null || onePrj.BS != oneODN.VT_SiteName)
+									onePrj.BS = oneODN.VT_SiteName;
+							if (oneODN.VT_AnchorCompany != null)
+								if (onePrj.AnchorCompany == null || onePrj.AnchorCompany != oneODN.VT_AnchorCompany)
+									onePrj.AnchorCompany = oneODN.VT_AnchorCompany;
+							//https://ph-vt.sale.elewise.com/T663
+							//if (oneODN.VT_PHPForecast != null)
+								onePrj.PHPForecast = oneODN.VT_PHPForecast;
+							//https://ph-vt.sale.elewise.com/T663
+							//if (oneODN.VT_PHPReceived != null)
+								onePrj.PHPReceived = oneODN.VT_PHPReceived;
+								onePrj.PHPPlan = oneODN.VT_PHPPlan;
+							if (oneODN.VT_CanPowered != null)
+								if (onePrj.CanPowered != oneODN.VT_CanPowered)
+									onePrj.CanPowered = oneODN.VT_CanPowered;
+							// Широта
+							if (oneODN.VT_Latitude != null)
+								if (onePrj.Latitude != onePrj.CodeODN.VT_Latitude)
+									onePrj.Latitude = onePrj.CodeODN.VT_Latitude;
+							// Долгота
+							if (oneODN.VT_Longitude != null)
+								if (onePrj.Longitude != onePrj.CodeODN.VT_Longitude)
+									onePrj.Longitude = onePrj.CodeODN.VT_Longitude;
+							oneODN.VT_TemporaryFoodPossible = onePrj.TemporaryFoodPossible;
+							//VIP
+							onePrj.VIPproject = oneODN.isVipProject;
+							onePrj.CommentVIP = oneODN.vipProjectComment;
+							// Ищем в проекте все задачи
+							var tasksProject = ProjectTaskManager.Instance.FindTasks (x => x.Project == onePrj);
+							// Перезаписываем все задачи во временную переменную
+							foreach (var oneTask in tasksProject) {
+								if (oneTask.Subject == "РНР получение") {
+									context.Project_Tasks.Add ((ProjectTask)oneTask);
+									break;
+								}
+							}
+							Logging.Logger.Log.Error ("oneTask.Subject1");
+							if (context.Project_Tasks.Count > 0) {
+								Logging.Logger.Log.Error ("oneTask.Subject2");
+								foreach (var taskPlan in context.Project_Tasks) {
+									var task = taskPlan as IProjectTaskConfigExt;
+									var baseTask = EntityManager<ProjectTaskBase>.Instance.Load(task.Id);
+									if (task.Subject == "РНР получение") {
+										Logging.Logger.Log.Error ("oneTask.Subject3");
+										if (onePrj.PHPReceived != null) {
+											Logging.Logger.Log.Error ("oneTask.Subject4");
+											if (task.IsComplete ()) {
+												Logging.Logger.Log.Error ("oneTask.Subject5");
+												if(baseTask != null)
+												{
+													Logging.Logger.Log.Error ("oneTask.Subject6");
+													if(baseTask.EndDate == onePrj.PHPReceived)
+													{
+														
+													}
+													else
+													{
+														Logging.Logger.Log.Error ("oneTask.Subject7");
+														baseTask.EndWorkDate = onePrj.PHPReceived;
+														baseTask.EndDate = onePrj.PHPPlan;
+														baseTask.EndPredictionDate = onePrj.PHPForecast;
+														flagTaskComplete = true;
+													}
+												}
+											}
+											else {
+												Logging.Logger.Log.Error ("oneTask.Subject8");
+												ProjectTaskBaseManager.Instance.DoCompleted ((ProjectTaskBase)task, true);
+												baseTask.EndWorkDate = onePrj.PHPReceived;
+												baseTask.EndDate = onePrj.PHPPlan;
+												baseTask.EndPredictionDate = onePrj.PHPForecast;
+												flagTaskComplete = true;
+											}
+											context.ProjectTasks.Add ((ProjectTask)task);
+										}
+										else
+										{
+											if (task.IsComplete ()){
+												Logging.Logger.Log.Error ("oneTask.Subject9");
+												ProjectTaskBaseManager.Instance.ReOpen(task); 
+												Thread.Sleep(20);
+												baseTask.EndDate = onePrj.PHPPlan;
+												baseTask.EndWorkDate = onePrj.PHPReceived;
+												baseTask.EndPredictionDate = onePrj.PHPForecast;
+												//flagTaskComplete = true;
+											}
+											else
+											{
+												baseTask.EndDate = onePrj.PHPPlan;
+												baseTask.EndPredictionDate = onePrj.PHPForecast;
+											}
+										}
+										break;
+									}
+								}
+								context.Project_Tasks.Clear ();
+							}
+							Logging.Logger.Log.Error ("findPrj2");
+							//Создание Рисков
+							CreateRiskInProject (onePrj, context);
+						}
+						//findPrj.Clear ();
+					}
+				}
